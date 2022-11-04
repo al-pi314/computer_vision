@@ -1,1 +1,5 @@
+# editor
 .vscode
+
+# python cache
+*.pyc
