@@ -1,5 +1,5 @@
-import numpy as np
 import cv2
+import numpy as np
 from matplotlib import pyplot as plt
 
 
@@ -97,10 +97,10 @@ def display_matches(I1, pts1, I2, pts2):
 	plt.imshow(I, cmap='gray')
 
 	for p1, p2 in zip(pts1, pts2):
-		x1 = p1[0]
-		y1 = p1[1]
-		x2 = p2[0]
-		y2 = p2[1]
+		x1 = p1[1]
+		y1 = p1[0]
+		x2 = p2[1]
+		y2 = p2[0]
 		plt.plot(x1, y1, 'bo', markersize=3)
 		plt.plot(x2 + w, y2, 'bo', markersize=3)
 		plt.plot([x1, x2 + w], [y1, y2], 'r', linewidth=.8)
