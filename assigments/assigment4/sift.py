@@ -127,5 +127,50 @@ class Sift:
         robust_kp = self._reject_edge_points(robust_kp, e_th)
 
         return self._get_orientations(robust_kp)
+
+    def _get_descriptor_for_keypoint(self, i, y, x, angle, bins=8, radius=16):
+        if y < radius or y > self._img.shape[0] - radius or x < radius or x > self._img.shape[1] - radius:
+            return None
+
+        window_mag = self._imgMag[y - radius:y + radius, x - radius:x + radius]
+        window_ang = self._imgAng[y - radius:y + radius, x - radius:x + radius]
+
+        gauss_weights = cv2.getGaussianKernel(4, self.sigma0 * self.sigmaS**i)
+        gauss_weights = gauss_weights * gauss_weights.T
+
+        descriptor = np.empty((16, bins))
+        # calculate descriptor for each cell in 4x4 grid
+        for wy in range(4):
+            for wx in range(4):
+                cell_mag = window_mag[wy * 4:(wy + 1) * 4, wx * 4:(wx + 1) * 4]
+                cell_ang = window_ang[wy * 4:(wy + 1) * 4, wx * 4:(wx + 1) * 4]
+
+                # calculate histogram for each cell
+                descriptor[4*wy + wx] = self._get_histogram(cell_mag, cell_ang, principal_angle=angle, weights=gauss_weights, bins=bins)
+        return descriptor.flatten()
+
+    def _get_histogram(self, cell_mag, cell_ang, principal_angle=0, weights=None, bins=8):
+        histogram = np.zeros(bins)
+        angle_step = 2 * np.pi / bins
+        for wy in range(len(cell_ang)):
+            for wx in range(len(cell_ang[wy])):
+                shifted_ang = ((cell_ang[wy, wx] - principal_angle) + 2 * np.pi) % (2 * np.pi)
+                bin_idx = int(shifted_ang / angle_step)
+                # angle of 2pi is equal to angle 0
+                if bin_idx == bins:
+                    bin_idx = 0
+                # add weighted magnitude to histogram
+                w = 1 if weights is None else weights[wy, wx]
+                histogram[bin_idx] += cell_mag[wy, wx] * w
+        return histogram
         
+    def describe(self, keypoints):
+        descriptors = []
+        keypoints_f = []
+        for i, y, x, angle, _ in keypoints:
+            descriptor = self._get_descriptor_for_keypoint(int(i), int(y), int(x), angle)
+            if descriptor is not None:
+                descriptors.append(descriptor)
+                keypoints_f.append(np.array([i, y, x, angle]))
+        return descriptors, keypoints_f
     
