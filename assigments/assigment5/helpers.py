@@ -65,7 +65,7 @@ def estimate_homography(pointsA, pointsB):
     H = h.reshape((3, 3))
     return H  
 
-def ransac(pointsA, pointsB, k=4, samples=4, t=0.001, p=0.99, e=0.1, expected_err=5, estimatior=estimate_homography):
+def ransac(pointsA, pointsB, k=4, samples=4, t=0.001, p=0.99, e=0.1, expected_err=5, estimatior=estimate_homography, inliers_func=inliers):
     # subtask C*
     if k is None:
         # 1 - p = (1 - (1 - e)**samples)**k
@@ -87,10 +87,10 @@ def ransac(pointsA, pointsB, k=4, samples=4, t=0.001, p=0.99, e=0.1, expected_er
     for matches in k_match_sets:
         H = estimatior(np.take(pointsA, matches, axis=0), np.take(pointsB, matches, axis=0))
 
-        inliers_idx, _ = inliers(pointsA, pointsB, H, t)
+        inliers_idx, _ = inliers_func(pointsA, pointsB, H, t)
         if len(inliers_idx) > len(pointsA) * 0.5:
             H = estimatior(np.take(pointsA, inliers_idx, axis=0), np.take(pointsB, inliers_idx, axis=0))
-            _, perror = inliers(pointsA, pointsB, H, t)
+            _, perror = inliers_func(pointsA, pointsB, H, t)
             if best_perror is None or perror < best_perror:
                 best_perror = perror
                 best_H = H
@@ -268,3 +268,25 @@ def convolve(I: np.ndarray, *ks):
 		k = np.flip(k)  # filter2D performs correlation, so flipping is necessary
 		I = cv2.filter2D(I, cv2.CV_64F, k)
 	return I
+def simple_descriptors_wrapper(I, Y, X):
+    points = np.array((Y, X)).T
+    return simple_descriptors(I, Y, X), points
+
+def find_matches(IA, IB, o=6, t=10**-6, nb=10, descriptors=simple_descriptors_wrapper):
+    keypoints_A = np.argwhere(harris_points(IA, o=o, t=t, nb=nb) > 0)
+    keypoints_B = np.argwhere(harris_points(IB, o=o, t=t, nb=nb) > 0)
+
+    descriptorsA, keypoints_A = descriptors(IA, keypoints_A[:, 0], keypoints_A[:, 1])
+    descriptorsB, keypoints_B = descriptors(IB, keypoints_B[:, 0], keypoints_B[:, 1])
+
+    correspondences_A_B = find_correspondences(descriptorsA, descriptorsB)
+    correspondences_B_A = find_correspondences(descriptorsB, descriptorsA, reverse=True)
+
+    symetric_correspondences = set(correspondences_A_B).intersection(set(correspondences_B_A))
+
+    correspondences_info = list(zip(*symetric_correspondences))
+
+    points_A_ordered = np.take(keypoints_A, correspondences_info[0], axis=0)
+    points_B_ordered = np.take(keypoints_B, correspondences_info[1], axis=0)
+
+    return points_A_ordered, points_B_ordered
